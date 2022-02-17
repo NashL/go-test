@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 	"math/rand"
+	"sync"
 )
 
 type BirdLocation struct {
@@ -18,26 +19,29 @@ type BirdTrack struct {
 	location 		BirdLocation
 }
 
+const BIRDS = 100
+var wg = sync.WaitGroup{}
 
 func main() {
-	logChannel := make(chan BirdTrack, 10)
+	birdSpeedControllerChannel := make(chan BirdTrack, 2)
 
-	go birdTracksGenerator(logChannel)
-	go birdTracksSpeedController(logChannel)
-	time.Sleep(time.Second * 20)
-	close(logChannel)
+	wg.Add(2)
+	go birdTracksGenerator(birdSpeedControllerChannel)
+	go birdTracksSpeedController(birdSpeedControllerChannel)
+	wg.Wait()
 }
 
-func birdTracksSpeedController(logChannel <-chan BirdTrack) {
-	for bird := range logChannel {
+func birdTracksSpeedController(birdSpeedControllerChannel <-chan BirdTrack) {
+	for bird := range birdSpeedControllerChannel {
 		if bird.speed > 10 {
 			bird.PrintOverSpeedingAlert()
 		} 
 	}
+	wg.Done()
 }
 
-func birdTracksGenerator (logChannel chan<- BirdTrack) {
-	for i:=1 ; true ; i++ {
+func birdTracksGenerator (birdSpeedControllerChannel chan<- BirdTrack) {
+	for i:=1 ; i < BIRDS ; i++ {
 		newBird := BirdTrack {
 			id: i,
 			speed: genRandomSpeed(),
@@ -47,8 +51,10 @@ func birdTracksGenerator (logChannel chan<- BirdTrack) {
 			},
 		}
 		time.Sleep(time.Millisecond * 1000)
-		logChannel <- newBird
+		birdSpeedControllerChannel <- newBird
 	}
+	close(birdSpeedControllerChannel)
+	wg.Done()
 }
 
 func genRandomSpeed() int{
